@@ -25,7 +25,8 @@
 #if defined(MBEDTLS_AES_USE_HARDWARE_ONLY)
 #if !((defined(MBEDTLS_ARCH_IS_ARMV8_A) && defined(MBEDTLS_AESCE_C)) || \
     (defined(MBEDTLS_ARCH_IS_X64)       && defined(MBEDTLS_AESNI_C)) || \
-    (defined(MBEDTLS_ARCH_IS_X86)       && defined(MBEDTLS_AESNI_C)))
+    (defined(MBEDTLS_ARCH_IS_X86)       && defined(MBEDTLS_AESNI_C)) || \
+    (defined(MBEDTLS_ARCH_IS_RISCV32)       && defined(MBEDTLS_AESZKN_C)))
 #error "MBEDTLS_AES_USE_HARDWARE_ONLY defined, but not all prerequisites"
 #endif
 #endif
@@ -35,6 +36,9 @@
 #endif
 #if defined(MBEDTLS_AESCE_C)
 #include "aesce.h"
+#endif
+#if defined(MBEDTLS_AESZKN_C)
+#include "aeszkn.h"
 #endif
 
 #include "mbedtls/platform.h"
@@ -575,6 +579,12 @@ int mbedtls_aes_setkey_enc(mbedtls_aes_context *ctx, const unsigned char *key,
     }
 #endif
 
+#if defined(MBEDTLS_AESZKN_HAVE_CODE)
+    if(mbedtls_aeszkn_has_support()) {
+        return mbedtls_aeszkn_setkey_enc((unsigned char *)RK, key, keybits);
+    }
+#endif
+
 #if !defined(MBEDTLS_AES_USE_HARDWARE_ONLY)
     for (unsigned int i = 0; i < (keybits >> 5); i++) {
         RK[i] = MBEDTLS_GET_UINT32_LE(key, i << 2);
@@ -684,6 +694,15 @@ int mbedtls_aes_setkey_dec(mbedtls_aes_context *ctx, const unsigned char *key,
     if (MBEDTLS_AESCE_HAS_SUPPORT()) {
         mbedtls_aesce_inverse_key(
             (unsigned char *) RK,
+            (const unsigned char *) (cty.buf + cty.rk_offset),
+            ctx->nr);
+        goto exit;
+    }
+#endif
+
+#if defined(MBEDTLS_AESZKN_HAVE_CODE)
+    if (mbedtls_aeszkn_has_support()) {
+        mbedtls_aeszkn_inverse_key((unsigned char *) RK,
             (const unsigned char *) (cty.buf + cty.rk_offset),
             ctx->nr);
         goto exit;
@@ -1011,6 +1030,12 @@ int mbedtls_aes_crypt_ecb(mbedtls_aes_context *ctx,
 #if defined(MBEDTLS_AESCE_HAVE_CODE)
     if (MBEDTLS_AESCE_HAS_SUPPORT()) {
         return mbedtls_aesce_crypt_ecb(ctx, mode, input, output);
+    }
+#endif
+
+#if defined(MBEDTLS_AESZKN_HAVE_CODE)
+    if (mbedtls_aeszkn_has_support()) {
+        return mbedtls_aeszkn_crypt_ecb(ctx, mode, input, output);
     }
 #endif
 
@@ -1808,6 +1833,11 @@ int mbedtls_aes_self_test(int verbose)
 #if defined(MBEDTLS_AESCE_HAVE_CODE)
         if (MBEDTLS_AESCE_HAS_SUPPORT()) {
             mbedtls_printf("  AES note: using AESCE.\n");
+        } else
+#endif
+#if defined(MBEDTLS_AESZKN_HAVE_CODE)
+        if (mbedtls_aeszkn_has_support()) {
+            mbedtls_printf("  AES note: using AESZKN.\n");
         } else
 #endif
         {
