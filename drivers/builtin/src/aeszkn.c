@@ -12,42 +12,34 @@
 #include "common.h"
 #include <string.h>
 
-#if defined(__linux__)
-#include <unistd.h>
-#include <sys/hwprobe.h>
-#define    RISCV_HWPROBE_EXT_ZKND    (1 << 11)
-#define    RISCV_HWPROBE_EXT_ZKNE    (1 << 12)
-#endif
-
 #if defined(MBEDTLS_AESZKN_C)
-
 #include "aeszkn.h"
 
 #if defined(MBEDTLS_AESZKN_HAVE_CODE)
-#if !defined(MBEDTLS_AES_USE_HARDWARE_ONLY)
+#if defined(__linux__) && !defined(MBEDTLS_AES_USE_HARDWARE_ONLY)
+#include <sys/hwprobe.h>
+#define RISCV_HWPROBE_EXT_ZKND (1 << 11)
+#define RISCV_HWPROBE_EXT_ZKNE (1 << 12)
+
 /*
  * AES-ZKN support detection routine
  */
 int mbedtls_aeszkn_has_support(void)
 {
-#if defined(__linux__)
     struct riscv_hwprobe pair;
     long rc;
 
     pair.key = RISCV_HWPROBE_KEY_IMA_EXT_0;
     rc = __riscv_hwprobe(&pair, 1, 0, NULL, 0);
-    if (rc < 0)
-        return 0;
-
-    if (pair.value & (RISCV_HWPROBE_EXT_ZKND | RISCV_HWPROBE_EXT_ZKNE))
-        return 1;
-#endif
+    if (rc == 0) {
+        if (pair.value & (RISCV_HWPROBE_EXT_ZKND | RISCV_HWPROBE_EXT_ZKNE))
+            return 1;
+    }
 
 	return 0;
 }
-#endif /* MBEDTLS_AES_USE_HARDWARE_ONLY */
+#endif /* defined(__linux__) && !defined(MBEDTLS_AES_USE_HARDWARE_ONLY) */
 
-#if defined(MBEDTLS_ARCH_IS_RISCV32)
 /*
  * Key expansion for encryption, 128-bit case
  */
@@ -59,6 +51,7 @@ static void __attribute__((naked)) aes_128_enc_ks(unsigned char *rk,
     (void) ck;
     (void) rc;
 
+#if defined(MBEDTLS_ARCH_IS_RISCV32)
     asm ("mv t1, a2    \n\t" // round constant
          "lw a2, 0(a1)    \n\t" // load cipher key
          "lw a3, 4(a1)    \n\t"
@@ -89,6 +82,63 @@ static void __attribute__((naked)) aes_128_enc_ks(unsigned char *rk,
          "j .aes_128_enc_ks_l0    \n\t"
          "aes_128_enc_ks_finish:    \n\t"
          "ret    \n\t");
+#else
+    asm ("ld a2, 0(a1)    \n\t" // load cipher key
+         "ld a3, 8(a1)    \n\t"
+         "sd a2, 0(a0)        \n\t" // save round key in rk
+         "sd a3, 8(a0)    \n\t"
+         "aes64ks1i t3 , a3, 0    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 16(a0)        \n\t"
+         "sd a3, 24(a0)    \n\t"
+         "aes64ks1i t3 , a3, 1    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 32(a0)        \n\t"
+         "sd a3, 40(a0)    \n\t"
+         "aes64ks1i t3 , a3, 2    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 48(a0)        \n\t"
+         "sd a3, 56(a0)    \n\t"
+         "aes64ks1i t3 , a3, 3    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 64(a0)        \n\t"
+         "sd a3, 72(a0)    \n\t"
+         "aes64ks1i t3 , a3, 4    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 80(a0)        \n\t"
+         "sd a3, 88(a0)    \n\t"
+         "aes64ks1i t3 , a3, 5    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 96(a0)        \n\t"
+         "sd a3, 104(a0)    \n\t"
+         "aes64ks1i t3 , a3, 6    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 112(a0)        \n\t"
+         "sd a3, 120(a0)    \n\t"
+         "aes64ks1i t3 , a3, 7    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 128(a0)        \n\t"
+         "sd a3, 136(a0)    \n\t"
+         "aes64ks1i t3 , a3, 8    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 144(a0)        \n\t"
+         "sd a3, 152(a0)    \n\t"
+         "aes64ks1i t3 , a3, 9    \n\t"
+         "aes64ks2 a2, t3 , a2    \n\t"
+         "aes64ks2 a3, a2, a3    \n\t"
+         "sd a2, 160(a0)        \n\t"
+         "sd a3, 168(a0)    \n\t"
+         "ret    \n\t");
+#endif /* MBEDTLS_ARCH_IS_RISCV32 */
 }
 
 #if !defined(MBEDTLS_AES_ONLY_128_BIT_KEY_LENGTH)
@@ -103,6 +153,7 @@ static void __attribute__((naked)) aes_192_enc_ks(unsigned char *rk,
     (void) ck;
     (void) rc;
 
+#if defined(MBEDTLS_ARCH_IS_RISCV32)
     asm ("mv t1, a2    \n\t" // round constant
          "lw a2, 0(a1)    \n\t"
          "lw a3, 4(a1)    \n\t"
@@ -139,6 +190,69 @@ static void __attribute__((naked)) aes_192_enc_ks(unsigned char *rk,
          "j .aes_192_enc_ks_l0    \n\t"
          "aes_192_enc_ks_finish:    \n\t"
          "ret    \n\t");
+#else
+    asm ("ld a2, 0(a1)    \n\t"
+         "ld a3, 8(a1)    \n\t"
+         "ld a4, 16(a1)    \n\t"
+         "sd a2, 0(a0)    \n\t"
+         "sd a3, 8(a0)    \n\t"
+         "sd a4, 16(a0)    \n\t"
+         "aes64ks1i t2, a4, 0    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 24(a0)    \n\t"
+         "sd a3, 32(a0)    \n\t"
+         "sd a4, 40(a0)    \n\t"
+         "aes64ks1i t2, a4, 1    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 48(a0)    \n\t"
+         "sd a3, 56(a0)    \n\t"
+         "sd a4, 64(a0)    \n\t"
+         "aes64ks1i t2, a4, 2    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 72(a0)    \n\t"
+         "sd a3, 80(a0)    \n\t"
+         "sd a4, 88(a0)    \n\t"
+         "aes64ks1i t2, a4, 3    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 96(a0)    \n\t"
+         "sd a3, 104(a0)    \n\t"
+         "sd a4, 112(a0)    \n\t"
+         "aes64ks1i t2, a4, 4    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 120(a0)    \n\t"
+         "sd a3, 128(a0)    \n\t"
+         "sd a4, 136(a0)    \n\t"
+         "aes64ks1i t2, a4, 5    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 144(a0)    \n\t"
+         "sd a3, 152(a0)    \n\t"
+         "sd a4, 160(a0)    \n\t"
+         "aes64ks1i t2, a4, 6    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks2  a4, a3, a4    \n\t"
+         "sd a2, 168(a0)    \n\t"
+         "sd a3, 176(a0)    \n\t"
+         "sd a4, 184(a0)    \n\t"
+         "aes64ks1i t2, a4, 7    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "sd a2, 192(a0)    \n\t"
+         "sd a3, 200(a0)    \n\t"
+         "ret    \n\t");
+#endif /* MBEDTLS_ARCH_IS_RISCV32 */
 }
 
 /*
@@ -152,6 +266,7 @@ static void __attribute__((naked)) aes_256_enc_ks (unsigned char *rk,
     (void) ck;
     (void) rc;
 
+#if defined(MBEDTLS_ARCH_IS_RISCV32)
     asm ("mv t1, a2    \n\t"
          "lw a2, 0(a1)    \n\t"
          "lw a3, 4(a1)    \n\t"
@@ -201,48 +316,84 @@ static void __attribute__((naked)) aes_256_enc_ks (unsigned char *rk,
          "j .aes_256_enc_ks_l0    \n\t"
          "aes_256_enc_ks_finish:    \n\t"
          "ret    \n\t");
+#else
+    asm ("ld a2, 0(a1)    \n\t"
+         "ld a3, 8(a1)    \n\t"
+         "ld a4, 16(a1)    \n\t"
+         "ld a5, 24(a1)    \n\t"
+         "sd a2, 0(a0)    \n\t"
+         "sd a3, 8(a0)    \n\t"
+         "sd a4, 16(a0)    \n\t"
+         "sd a5, 24(a0)    \n\t"
+         "aes64ks1i t2, a5, 0    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks1i t2, a3, 0xa    \n\t"
+         "aes64ks2  a4,t2, a4    \n\t"
+         "aes64ks2  a5, a4, a5    \n\t"
+         "sd a2, 32(a0)    \n\t"
+         "sd a3, 40(a0)    \n\t"
+         "sd a4, 48(a0)    \n\t"
+         "sd a5, 56(a0)    \n\t"
+         "aes64ks1i t2, a5, 1    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks1i t2, a3, 0xa    \n\t"
+         "aes64ks2  a4,t2, a4    \n\t"
+         "aes64ks2  a5, a4, a5    \n\t"
+         "sd a2, 64(a0)    \n\t"
+         "sd a3, 72(a0)    \n\t"
+         "sd a4, 80(a0)    \n\t"
+         "sd a5, 88(a0)    \n\t"
+         "aes64ks1i t2, a5, 2    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks1i t2, a3, 0xa    \n\t"
+         "aes64ks2  a4,t2, a4    \n\t"
+         "aes64ks2  a5, a4, a5    \n\t"
+         "sd a2, 96(a0)    \n\t"
+         "sd a3, 104(a0)    \n\t"
+         "sd a4, 112(a0)    \n\t"
+         "sd a5, 120(a0)    \n\t"
+         "aes64ks1i t2, a5, 3    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks1i t2, a3, 0xa    \n\t"
+         "aes64ks2  a4,t2, a4    \n\t"
+         "aes64ks2  a5, a4, a5    \n\t"
+         "sd a2, 128(a0)    \n\t"
+         "sd a3, 136(a0)    \n\t"
+         "sd a4, 144(a0)    \n\t"
+         "sd a5, 152(a0)    \n\t"
+         "aes64ks1i t2, a5, 4    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks1i t2, a3, 0xa    \n\t"
+         "aes64ks2  a4,t2, a4    \n\t"
+         "aes64ks2  a5, a4, a5    \n\t"
+         "sd a2, 160(a0)    \n\t"
+         "sd a3, 168(a0)    \n\t"
+         "sd a4, 176(a0)    \n\t"
+         "sd a5, 184(a0)    \n\t"
+         "aes64ks1i t2, a5, 5    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "aes64ks1i t2, a3, 0xa    \n\t"
+         "aes64ks2  a4,t2, a4    \n\t"
+         "aes64ks2  a5, a4, a5    \n\t"
+         "sd a2, 192(a0)    \n\t"
+         "sd a3, 200(a0)    \n\t"
+         "sd a4, 208(a0)    \n\t"
+         "sd a5, 216(a0)    \n\t"
+         "aes64ks1i t2, a5, 6    \n\t"
+         "aes64ks2  a2,t2, a2    \n\t"
+         "aes64ks2  a3, a2, a3    \n\t"
+         "sd a2, 224(a0)    \n\t"
+         "sd a3, 232(a0)    \n\t"
+         "ret    \n\t");
+#endif /* MBEDTLS_ARCH_IS_RISCV32 */
 }
 #endif /* !MBEDTLS_AES_ONLY_128_BIT_KEY_LENGTH */
-
-#if !defined(MBEDTLS_BLOCK_CIPHER_NO_DECRYPT)
-/*
- * Key expansion of Inverse transformation for decryption
- */
-static void __attribute__((naked)) aes_dec_ks_inv(unsigned char *rk,
-                             const unsigned char *ck,
-                             const unsigned char *rkp)
-{
-    (void) rk;
-    (void) ck;
-    (void) rkp;
-
-    asm (".des_inv_ks_loop:    \n\t"
-         "lw t0, 0(a1)    \n\t"
-         "li t1, 0    \n\t"
-         "aes32esi t1, t1, t0, 0    \n\t"
-         "aes32esi t1, t1, t0, 1    \n\t"
-         "aes32esi t1, t1, t0, 2    \n\t"
-         "aes32esi t1, t1, t0, 3    \n\t"
-         "li t0, 0    \n\t"
-         "aes32dsmi	t0, t0, t1, 0    \n\t"
-         "aes32dsmi	t0, t0, t1, 1    \n\t"
-         "aes32dsmi	t0, t0, t1, 2    \n\t"
-         "aes32dsmi	t0, t0, t1, 3    \n\t"
-         "sw t0, 0(a0)    \n\t"
-         "addi a0, a0, 4    \n\t"
-         "addi a1, a1, 4    \n\t"
-         "bne a1, a2, .des_inv_ks_loop    \n\t"
-         "lw t0, 0(a1)    \n\t"
-         "sw t0, 0(a0)    \n\t"
-         "lw t0, 4(a1)    \n\t"
-         "sw t0, 4(a0)    \n\t"
-         "lw t0, 8(a1)    \n\t"
-         "sw t0, 8(a0)    \n\t"
-         "lw t0, 12(a1)    \n\t"
-         "sw t0, 12(a0)    \n\t"
-         "ret    \n\t");
-}
-#endif /* !MBEDTLS_BLOCK_CIPHER_NO_DECRYPT */
 
 static void __attribute__((naked)) aes_ecb_encrypt(unsigned char ct[16],
                              const unsigned char pt[16],
@@ -254,6 +405,7 @@ static void __attribute__((naked)) aes_ecb_encrypt(unsigned char ct[16],
     (void) rk;
     (void) ptr;
 
+#if defined(MBEDTLS_ARCH_IS_RISCV32)
     asm ("lw a4, 0(a1)    \n\t"
          "lw a5, 4(a1)    \n\t"
          "lw a6, 8(a1)    \n\t"
@@ -332,9 +484,103 @@ static void __attribute__((naked)) aes_ecb_encrypt(unsigned char ct[16],
          "sw a6, 8(a0)    \n\t"
          "sw a7, 12(a0)    \n\t"
          "ret    \n\t");
+#else
+    asm ("ld a5, 0(a1)    \n\t"
+         "ld a6, 8(a1)    \n\t"
+         ".aes_enc:    \n\t"
+         "ld t2, 0(a2)    \n\t"  // Load round keys
+         "ld t3, 8(a2)    \n\t"
+         "ld t0, 16(a2)    \n\t"
+         "ld t1, 24(a2)    \n\t"
+         "xor a5, a5, t2    \n\t" // AddRoundKey
+         "xor a6, a6, t3    \n\t"
+         "aes64esm a7, a5, a6    \n\t"
+         "aes64esm t5, a6, a5    \n\t"
+         "xor a7, a7, t0    \n\t"
+         "xor t5, t5, t1    \n\t"
+         "aes64esm a5, a7, t5    \n\t"
+         "aes64esm a6, t5, a7    \n\t"
+         "addi a2, a2, 32    \n\t"
+         "bne a2, a3, .aes_enc    \n\t"
+         "ld t2, 0(a2)    \n\t"
+         "ld t3, 8(a2)    \n\t"
+         "ld t0, 16(a2)    \n\t"
+         "ld t1, 24(a2)    \n\t"
+         "xor a5, a5, t2    \n\t"
+         "xor a6, a6, t3    \n\t"
+         "ld  t2, 32(a2)    \n\t"
+         "ld  t3, 40(a2)    \n\t"
+         "aes64esm a7, a5, a6    \n\t"
+         "aes64esm t5, a6, a5     \n\t"
+         "xor a7, a7, t0    \n\t"
+         "xor t5, t5, t1    \n\t"
+         "aes64es a5, a7, t5    \n\t"
+         "aes64es a6, t5, a7    \n\t"
+         "xor a5, a5, t2    \n\t"
+         "xor a6, a6, t3    \n\t"
+         "sd a5, 0(a0)    \n\t"
+         "sd a6, 8(a0)    \n\t"
+         "ret    \n\t");
+#endif /* MBEDTLS_ARCH_IS_RISCV32 */
 }
 
 #if !defined(MBEDTLS_BLOCK_CIPHER_NO_DECRYPT)
+/*
+ * Key expansion of Inverse transformation for decryption
+ */
+static void __attribute__((naked)) aes_dec_ks_inv(unsigned char *rk,
+                             const unsigned char *ck,
+                             const unsigned char *rkp)
+{
+    (void) rk;
+    (void) ck;
+    (void) rkp;
+
+#if defined(MBEDTLS_ARCH_IS_RISCV32)
+    asm (".des_inv_ks_loop:    \n\t"
+         "lw t0, 0(a1)    \n\t"
+         "li t1, 0    \n\t"
+         "aes32esi t1, t1, t0, 0    \n\t"
+         "aes32esi t1, t1, t0, 1    \n\t"
+         "aes32esi t1, t1, t0, 2    \n\t"
+         "aes32esi t1, t1, t0, 3    \n\t"
+         "li t0, 0    \n\t"
+         "aes32dsmi	t0, t0, t1, 0    \n\t"
+         "aes32dsmi	t0, t0, t1, 1    \n\t"
+         "aes32dsmi	t0, t0, t1, 2    \n\t"
+         "aes32dsmi	t0, t0, t1, 3    \n\t"
+         "sw t0, 0(a0)    \n\t"
+         "addi a0, a0, 4    \n\t"
+         "addi a1, a1, 4    \n\t"
+         "bne a1, a2, .des_inv_ks_loop    \n\t"
+         "lw t0, 0(a1)    \n\t"
+         "sw t0, 0(a0)    \n\t"
+         "lw t0, 4(a1)    \n\t"
+         "sw t0, 4(a0)    \n\t"
+         "lw t0, 8(a1)    \n\t"
+         "sw t0, 8(a0)    \n\t"
+         "lw t0, 12(a1)    \n\t"
+         "sw t0, 12(a0)    \n\t"
+         "ret    \n\t");
+#else
+    asm (".des_inv_ks_loop:    \n\t"
+         "ld a3, 0(a1)    \n\t"
+         "ld a4, 8(a1)    \n\t"
+         "aes64im a3, a3    \n\t"
+         "aes64im a4, a4    \n\t"
+         "sd a3, 0(a0)    \n\t"
+         "sd a4, 8(a0)    \n\t"
+         "addi a0, a0, 16    \n\t"
+         "addi a1, a1, 16    \n\t"
+         "bne a1, a2, .des_inv_ks_loop    \n\t"
+         "ld t0, 0(a1)    \n\t"
+         "sd t0, 0(a0)    \n\t"
+         "ld t0, 8(a1)    \n\t"
+         "sd t0, 8(a0)    \n\t"
+         "ret    \n\t");
+#endif /* MBEDTLS_ARCH_IS_RISCV32 */
+}
+
 static void __attribute__((naked)) aes_ecb_decrypt(unsigned char pt[16],
                              const unsigned char ct[16],
                              unsigned char *rk,
@@ -345,6 +591,7 @@ static void __attribute__((naked)) aes_ecb_decrypt(unsigned char pt[16],
     (void) rk;
     (void) ptr;
 
+#if defined(MBEDTLS_ARCH_IS_RISCV32)
     asm ("lw a4, 0(a1)    \n\t"
          "lw a5, 4(a1)    \n\t"
          "lw a6, 8(a1)    \n\t"
@@ -424,6 +671,44 @@ static void __attribute__((naked)) aes_ecb_decrypt(unsigned char pt[16],
          "sw a6, 8(a0)    \n\t"
          "sw a7, 12(a0)    \n\t"
          "ret    \n\t");
+#else
+    asm ("ld a5, 0(a1)    \n\t"
+        "ld a6, 8(a1)    \n\t"
+        "ld t2, 32(a3)    \n\t"
+        "ld t3, 40(a3)    \n\t"
+        "xor     a5, a5, t2    \n\t"
+        "xor     a6, a6, t3    \n\t"
+        ".aes_dec:    \n\t"
+        "ld t2, 16(a3)    \n\t"
+        "ld t3, 24(a3)    \n\t"
+        "ld t0, 0(a3)    \n\t"
+        "ld t1, 8(a3)    \n\t"
+        "aes64dsm a7, a5, a6    \n\t"
+        "aes64dsm t6, a6, a5    \n\t"
+        "xor a5, a7, t2    \n\t"
+        "xor a6, t6, t3    \n\t"
+        "aes64dsm a7, a5, a6    \n\t"
+        "aes64dsm t6, a6, a5    \n\t"
+        "xor a5, a7, t0    \n\t"
+        "xor a6, t6, t1    \n\t"
+        "addi a3, a3, -32    \n\t"
+        "bne a2, a3, .aes_dec    \n\t"
+        "ld t2, 16(a3)    \n\t"
+        "ld t3, 24(a3)    \n\t"
+        "ld t0, 0(a3)    \n\t"
+        "ld t1, 8(a3)    \n\t"
+        "aes64dsm a7, a5, a6    \n\t"
+        "aes64dsm t6, a6, a5    \n\t"
+        "xor a5, a7, t2    \n\t"
+        "xor a6, t6, t3    \n\t"
+        "aes64ds a7, a5, a6    \n\t"
+        "aes64ds t6, a6, a5    \n\t"
+        "xor a5, a7, t0    \n\t"
+        "xor a6, t6, t1    \n\t"
+        "sd a5, 0(a0)    \n\t"
+        "sd a6, 8(a0)    \n\t"
+        "ret    \n\t");
+#endif /* MBEDTLS_ARCH_IS_RISCV32 */
 }
 
 /*
@@ -469,12 +754,14 @@ int mbedtls_aeszkn_crypt_ecb(mbedtls_aes_context *ctx,
                              unsigned char output[16])
 {
     unsigned char *keys = (unsigned char *) (ctx->buf + ctx->rk_offset);
-    unsigned char *ekeys = (unsigned char *) keys+(ctx->nr<<4);
+    unsigned char *ekeys = keys + ((ctx->nr - ((__riscv_xlen >> 6) << 1)) << 4);
 
 #if !defined(MBEDTLS_BLOCK_CIPHER_NO_DECRYPT)
     if (mode == MBEDTLS_AES_DECRYPT) {
         aes_ecb_decrypt(output, input, keys, ekeys);
     } else
+#else
+    (void) mode;
 #endif /* !MBEDTLS_BLOCK_CIPHER_NO_DECRYPT */
     {
         aes_ecb_encrypt(output, input, keys, ekeys);
@@ -482,8 +769,5 @@ int mbedtls_aeszkn_crypt_ecb(mbedtls_aes_context *ctx,
 
     return 0;
 }
-#elif defined(MBEDTLS_ARCH_IS_RISCV64)
-#error "MBEDTLS_AESZKN_C defined, but riscv 64 not support yet"
-#endif /* MBEDTLS_ARCH_IS_RISCV32 or MBEDTLS_ARCH_IS_RISCV64 */
 #endif /* MBEDTLS_AESZKN_HAVE_CODE */
 #endif /* MBEDTLS_AESZKN_C */

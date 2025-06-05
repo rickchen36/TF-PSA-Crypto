@@ -18,9 +18,9 @@
 #include "mbedtls/aes.h"
 
 #if (defined(MBEDTLS_AESZKN_C) && defined(MBEDTLS_HAVE_ASM) && \
-    defined(__GNUC__) &&  \
+    defined(MBEDTLS_COMPILER_IS_GCC) && \
+    (defined(MBEDTLS_ARCH_IS_RISCV32) || defined(MBEDTLS_ARCH_IS_RISCV64)) && \
     (defined(__riscv_zkne) &&  defined(__riscv_zknd)))
-
 #define MBEDTLS_AESZKN_HAVE_CODE
 
 /**
@@ -28,7 +28,7 @@
  *
  * \return         1 if CPU has support for the feature, 0 otherwise
  */
-#if !defined(MBEDTLS_AES_USE_HARDWARE_ONLY)
+#if defined(__linux__) && !defined(MBEDTLS_AES_USE_HARDWARE_ONLY)
 int mbedtls_aeszkn_has_support(void);
 #else
 #define mbedtls_aeszkn_has_support() 1
@@ -85,5 +85,7 @@ int mbedtls_aeszkn_crypt_ecb(mbedtls_aes_context *ctx,
                             const unsigned char input[16],
                             unsigned char output[16]);
 #endif /* MBEDTLS_AESZKN_C && MBEDTLS_HAVE_ASM &&
-               __GUN__ && __riscv_zkne && __riscv_zknd */
+               MBEDTLS_COMPILER_IS_GCC &&
+               MBEDTLS_ARCH_IS_RISCV32 && MBEDTLS_ARCH_IS_RISCV64
+               __riscv_zkne && __riscv_zknd */
 #endif /* MBEDTLS_AESZKN_H */
