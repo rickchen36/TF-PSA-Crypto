@@ -26,7 +26,8 @@
 #if !((defined(MBEDTLS_ARCH_IS_ARMV8_A) && defined(MBEDTLS_AESCE_C)) || \
     (defined(MBEDTLS_ARCH_IS_X64)       && defined(MBEDTLS_AESNI_C)) || \
     (defined(MBEDTLS_ARCH_IS_X86)       && defined(MBEDTLS_AESNI_C)) || \
-    (defined(MBEDTLS_ARCH_IS_RISCV32)       && defined(MBEDTLS_AESZKN_C)))
+    (defined(MBEDTLS_ARCH_IS_RISCV32)       && defined(MBEDTLS_AESZKN_C)) || \
+    (defined(MBEDTLS_ARCH_IS_RISCV64)       && defined(MBEDTLS_AESZKN_C)))
 #error "MBEDTLS_AES_USE_HARDWARE_ONLY defined, but not all prerequisites"
 #endif
 #endif
@@ -1134,7 +1135,7 @@ typedef unsigned char mbedtls_be128[16];
  * for machine endianness and hence works correctly on both big and little
  * endian machines.
  */
-#if defined(MBEDTLS_AESCE_C) || defined(MBEDTLS_AESNI_C)
+#if defined(MBEDTLS_AESCE_C) || defined(MBEDTLS_AESNI_C) || defined(MBEDTLS_AESZKN_C)
 MBEDTLS_OPTIMIZE_FOR_PERFORMANCE
 #endif
 static inline void mbedtls_gf128mul_x_ble(unsigned char r[16],
@@ -1158,7 +1159,7 @@ static inline void mbedtls_gf128mul_x_ble(unsigned char r[16],
  * Use of MBEDTLS_OPTIMIZE_FOR_PERFORMANCE here and for mbedtls_gf128mul_x_ble()
  * is a 3x performance improvement for gcc -Os, if we have hardware AES support.
  */
-#if defined(MBEDTLS_AESCE_C) || defined(MBEDTLS_AESNI_C)
+#if defined(MBEDTLS_AESCE_C) || defined(MBEDTLS_AESNI_C) || defined(MBEDTLS_AESZKN_C)
 MBEDTLS_OPTIMIZE_FOR_PERFORMANCE
 #endif
 int mbedtls_aes_crypt_xts(mbedtls_aes_xts_context *ctx,
